@@ -1,1 +1,2 @@
-Git
+Git is good
+Anaconda is better
