@@ -29,9 +29,9 @@ def backupGitHub(path='C:\\Users\\gsr00\\软工\\code'):
         repo=git.Repo(path)
     except:
         repo.git.Repo.init(path)
-    new_url='https://github.com/gsr0003/code.git'
+    #new_url='https://github.com/gsr0003/code.git'
     origin=repo.remote('origin')
-    origin.set_url(new_url)
+    #origin.set_url(new_url)
     repo.git.add('-A')
     date=time.strftime('%Y.%m.%d %H:%M:%S')
     commit_message=f'Automatically update at {date}'
