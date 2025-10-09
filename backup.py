@@ -13,7 +13,7 @@ def backupLocal(path='../backup'):
     for file in files:
         shutil.copy(file,f'{path}/{date}/{file}')
 
-def backupGitHub(path='C:\\Users\\gsr00\\软工\\code'):
+'''def backupGitHub(path='C:\\Users\\gsr00\\软工\\code'):
     try:
         repo=git.Repo(path)
     except:
@@ -23,5 +23,19 @@ def backupGitHub(path='C:\\Users\\gsr00\\软工\\code'):
     commit_message=f'Automatically update at {date}'
     repo.index.commit(commit_message)
     origin=repo.remote(name='origin')
+    origin.push()'''
+def backupGitHub(path='C:\\Users\\gsr00\\软工\\code'):
+    try:
+        repo=git.Repo(path)
+    except:
+        repo.git.Repo.init(path)
+    new_url='https://github.com/gsr0003/code.git'
+    origin=repo.remote('origin')
+    origin.set_url(new_url)
+    repo.git.add('-A')
+    date=time.strftime('%Y.%m.%d %H:%M:%S')
+    commit_message=f'Automatically update at {date}'
+    repo.index.commit(commit_message)
+    print("开始推送...")
     origin.push()
-    
+    print('推送成功')
