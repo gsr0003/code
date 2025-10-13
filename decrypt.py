@@ -20,7 +20,7 @@ def decryptAES(file_path,file_name,dst_path):
     dt=datetime.fromtimestamp(timestamp)
     ctime=dt.strftime('%d%H%M%S')
     iv=f'{key[4:12]}{ctime}'
-    aes=AES.new(key,AES.MODE_CBC,iv)
+    aes=AES.new(key.encode(),AES.MODE_CBC,iv.encode())
     with open(file_path+file_name,'rb') as decry_in:
         with open(dst_path+file_name[21:],'wb') as decry_out:
             decry_out.write(aes.decrypt(decry_in.read()))
