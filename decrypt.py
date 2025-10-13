@@ -6,7 +6,7 @@ from Crypto.Util.Padding import pad
 
 def decrypt3DES(file_path,file_name,dst_path):
     key=file_name[5:21]
-    timestamp=os.path.getctime(file_path)
+    timestamp=os.path.getctime(file_path+file_name)
     dt=datetime.fromtimestamp(timestamp)
     iv=dt.strftime('%d%H%M%S')
     print(iv)
@@ -17,7 +17,7 @@ def decrypt3DES(file_path,file_name,dst_path):
 
 def decryptAES(file_path,file_name,dst_path):
     key=file_name[4:20]
-    timestamp=os.path.getctime(file_path)
+    timestamp=os.path.getctime(file_path+file_name)
     dt=datetime.fromtimestamp(timestamp)
     ctime=dt.strftime('%d%H%M%S')
     print(ctime)
