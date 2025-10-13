@@ -9,7 +9,6 @@ def decrypt3DES(file_path,file_name,dst_path):
     timestamp=os.path.getctime(file_path+file_name)
     dt=datetime.fromtimestamp(timestamp)
     iv=dt.strftime('%d%H%M%S')
-    print(iv)
     des=pyDes.triple_des(key,pyDes.CBC,iv,pad=None,padmode=pyDes.PAD_PKCS5)
     with open(file_path+file_name,'rb') as decry_in:
         with open(dst_path+file_name[22:],'wb') as decry_out:
@@ -20,7 +19,6 @@ def decryptAES(file_path,file_name,dst_path):
     timestamp=os.path.getctime(file_path+file_name)
     dt=datetime.fromtimestamp(timestamp)
     ctime=dt.strftime('%d%H%M%S')
-    print(ctime)
     iv=f'{key[4:12]}{ctime}'
     aes=AES.new(key,AES.MODE_CBC,iv)
     with open(file_path+file_name,'rb') as decry_in:
