@@ -1,6 +1,7 @@
 from tqdm import tqdm
 from typing import Dict,List,Tuple
 
+#创建节点类型
 class Node:
     def __init__(self,value,weight,lchild,rchild):
         self.value=value
@@ -8,15 +9,18 @@ class Node:
         self.lchild=lchild
         self.rchild=rchild
 
+#
 def int_to_bytes(n:int)->bytes:
     return bytes([n])
 
+#
 def bytes_fre(bytes_str:bytes):
     fre_dic=[0 for _ in range(256)]
     for i in bytes_str:
         fre_dic[i]+=1
     return {int_to_bytes(x):fre_dic[x] for x in range(256) if fre_dic[x]>0}
 
+#构建huffman树
 def build(fre_dic:Dict[bytes,int])->Dict[bytes,str]:
     def dlr(current:Node,huffman_code:str,huffman_dic:Dict[bytes,str]):
         if current is None:
