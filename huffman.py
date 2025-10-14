@@ -162,12 +162,14 @@ def huffmanDecode(str_bytes:bytes,mode:int):
     write_buffer=decode(str_bytes,code_dic,padding)
     return write_buffer
 
+#huffman压缩，将文件以huffman算法压缩到添加了相应前缀名的新文件
 def huffmanCompress(source_path:str,source_name:str,mode:int=0):
     with open(source_path+source_name,'rb') as fp_in:
         with open(f'{source_path}huffman_{source_name}','wb') as fp_out:
             write_buffer=huffmanEncode(fp_in.read(),mode)
             fp_out.write(write_buffer)
 
+#huffman解压，将文件以huffman算法解压到去除了相应前缀名的新文件
 def huffmanDecompress(source_path:str,source_name:str,mode:int=0):
     with open(source_path+source_name,'rb') as fp_in:
         with open(source_path+source_name[8:],'wb') as fp_out:
