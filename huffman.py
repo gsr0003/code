@@ -22,6 +22,8 @@ def bytes_fre(bytes_str:bytes):
 
 #构建huffman树
 def build(fre_dic:Dict[bytes,int])->Dict[bytes,str]:
+
+    #
     def dlr(current:Node,huffman_code:str,huffman_dic:Dict[bytes,str]):
         if current is None:
             return
@@ -51,6 +53,7 @@ def build(fre_dic:Dict[bytes,int])->Dict[bytes,str]:
     dlr(node_lst[0],'',huffman_dic)
     return huffman_dic
 
+#
 def toCanonical(huffman_dic:Dict[bytes,str])->Dict[bytes,str]:
     code_lst=[(value,len(code)) for value,code in huffman_dic.items()]
     code_lst.sort(key=lambda item:(item[1],item[0]),reverse=False)
@@ -60,6 +63,7 @@ def toCanonical(huffman_dic:Dict[bytes,str])->Dict[bytes,str]:
         len_lst.append(length)
     return rebuild(val_lst,len_lst)
 
+#
 def rebuild(val_lst:List[bytes],len_lst:List[int])->Dict[bytes,str]:
     huffman_dic={val:'' for val in val_lst}
     current_code=0
@@ -71,6 +75,7 @@ def rebuild(val_lst:List[bytes],len_lst:List[int])->Dict[bytes,str]:
         huffman_dic[val_lst[i]]=bin(current_code)[2::].rjust(len_lst[i],'0')
     return huffman_dic
 
+#
 def encode(str_bytes:bytes,huffman_dic:Dict[bytes,str])->Tuple[bytes,int]:
     bin_buffer=''
     padding=0
@@ -89,6 +94,7 @@ def encode(str_bytes:bytes,huffman_dic:Dict[bytes,str])->Tuple[bytes,int]:
         write_buffer.append(int(bin_buffer,2))
     return bytes(write_buffer),padding
 
+#    
 def decode(str_bytes:bytes,huffman_dic:Dict[bytes,str],padding:int):
     if not huffman_dic:
         return b''
@@ -122,6 +128,7 @@ def decode(str_bytes:bytes,huffman_dic:Dict[bytes,str],padding:int):
                 current=node_lst[0]
     return bytes(write_buffer)
 
+#huffman编码，将源内容按所构建的huffman树转换为huffman编码
 def huffmanEncode(str_bytes:bytes,mode:int):
     fre_dic=bytes_fre(str_bytes)
     code_dic=build(fre_dic)
@@ -142,6 +149,7 @@ def huffmanEncode(str_bytes:bytes,mode:int):
     write_buffer=int_to_bytes(padding)+code_data+temp_buffer
     return write_buffer
 
+#huffman解码，将huffman编码按所构建的huffman树还原为原内容
 def huffmanDecode(str_bytes:bytes,mode:int):
     #print(str_bytes)
     padding=str_bytes[0]

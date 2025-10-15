@@ -3,7 +3,8 @@ import os
 import tarfile
 from rarfile import RarFile
 from pathlib import Path
-#文件压缩
+
+#zip打包，将所选文件打包成一个zip文件
 def packZipFile(file_path,file_list,dst_path,zip_name):
     with zipfile.ZipFile(dst_path+zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for file in file_list:
@@ -30,7 +31,8 @@ def packZipFile(file_path,file_list,dst_path,zip_name):
                     for File in files:
                         file_path = os.path.join(root, File)
                         rar.write(file_path,file_path)'''
-    
+
+#tar打包，将所选文件打包成一个tgz文件
 def packTarFile(file_path,file_list,dst_path,tgz_name):
     with tarfile.open(dst_path+tgz_name,'w:gz') as tar:
         for file in file_list:

@@ -2,7 +2,8 @@ import os
 import zipfile
 import rarfile
 import tarfile
-#解压zip文件
+
+#zip解包，将zip文件中包含的源文件解包出来
 def unpackZipFile(path,file):
     #for file in file_list:
     #file_name=file[:-4]
@@ -17,6 +18,7 @@ def unpackZipFile(path,file):
     rar.extractall()
     rar.close()'''
 
+#tar解包，将tgz文件中包含的源文件解包出来
 def unpackTarFile(path,file):
     with tarfile.open(path+file,'r:gz') as tar:
         tar.extractall(path)
