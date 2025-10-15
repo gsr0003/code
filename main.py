@@ -7,6 +7,8 @@
 import os
 import sys
 import time
+import random
+import string
 import schedule
 from PyQt6 import QtCore, QtGui, QtWidgets
 from functools import partial
@@ -19,10 +21,15 @@ from decrypt import decrypt3DES,decryptAES
 from backup import backupLocal,backupGitHub
 from threading import Thread,Event
 
+#密钥生成，随机生成以大小写字母及数字组成的定长字符串作为密钥
+def randomString(length):
+    content=string.ascii_letters+string.digits
+    return ''.join(random.choice(content) for _ in range(length))
+
 #GUI界面设计
 class Ui_Dialog(object):
     #GUI界面初始化
-    def init(self,Dialog,backup_local_thread,backup_online_thread):
+    def init(self,Dialog):
         #背景设计
         self.Dialog=Dialog
         Dialog.setObjectName("Dialog")
@@ -41,9 +48,9 @@ class Ui_Dialog(object):
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout.setObjectName("verticalLayout")
 
-        #自动备份子进程启动
+        '''#自动备份子进程启动
         self.backup_local_thread=backup_local_thread
-        self.backup_online_thread=backup_online_thread
+        self.backup_online_thread=backup_online_thread'''
 
         #查询参数初始化，设置页面大小
         self.size=8
@@ -53,6 +60,7 @@ class Ui_Dialog(object):
 
     #主界面设计
     def setupUI(self,Dialog):
+        
         #清屏
         self.clear()
 
@@ -67,24 +75,27 @@ class Ui_Dialog(object):
         self.pushButton_2.setObjectName("pushButton_2")
         self.verticalLayout.addWidget(self.pushButton_2)
         self.retranslateUi(Dialog)
-        
         self.pushButton.clicked.connect(self.backupInit) # type: ignore
         self.pushButton_2.clicked.connect(self.restoreInit) # type: ignore
         QtCore.QMetaObject.connectSlotsByName(Dialog)
 
+    #备份源路径选择初始化
     def backupInit(self):
         self.tag=0
         self.searchDir()
 
+    #还原源路径选择初始化
     def restoreInit(self):
         self.tag=1
         self.searchDir()
 
+    #备份目标路径选择初始化
     def backupDstInit(self):
         self.tag=2
         self.dst_path=self.path
         self.searchDst()
 
+    #还原目标路径选择初始化
     def restoreDstInit(self):
         self.tag=3
         self.dst_path=self.path
@@ -110,14 +121,59 @@ class Ui_Dialog(object):
     def Back(self):
         if self.tag<2:
             self.path='\\'.join(self.path[:-1].split('\\')[:-1])+'\\'
-            #display(self.path)
             self.searchDir()
         else:
             self.dst_path='\\'.join(self.dst_path[:-1].split('\\')[:-1])+'\\'
-            #display(self.dst_path)
             self.searchDst()
 
+    #文件展示，用于在备份/还原时展示并选择当前路径下可供备份/还原的文件
     def showFiles(self,page):
+        self.clear()
+        length=min(len(self.files)-page*self.size,self.size)
+        _translate = QtCore.QCoreApplication.translate
+        
+        #选项设计，为当前路径下每个文件创建一个按钮
+        for i in range(0,length):
+            file_button = QtWidgets.QCheckBox(parent=self.verticalLayoutWidget)
+            file_button.setObjectName(f"fileButton{i}")
+            file_button.setText(_translate("Dialog", self.files[page*self.size+i]))
+            if self.files[page*self.size+i] in self.targets:
+                file_button.setChecked(True)
+        
+            # 使用 partial 连接信号
+            file_button.clicked.connect(partial(self.targetsChange, self.files[page*self.size+i]))
+            self.verticalLayout.addWidget(file_button)
+            
+            # 动态设置属性
+            setattr(self, f'file_button{i}', file_button)
+            exec('self.file_button{}.show'.format(i))
+            
+        if page>0:
+            self.last=QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
+            self.last.setObjectName('last')
+            self.last.setText(_translate('Dialog','上一页'))
+            self.last.clicked.connect(partial(self.showFiles, page-1))
+            self.verticalLayout.addWidget(self.last)
+
+        if page*self.size+self.size<len(self.files):
+            self.next=QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
+            self.next.setObjectName('next')
+            self.next.setText(_translate('Dialog','下一页'))
+            self.next.clicked.connect(partial(self.showFiles, page+1))
+            self.verticalLayout.addWidget(self.next)
+
+        #确定按钮设计，表示已完成目标文件的选择
+        self.confirm=QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
+        self.confirm.setObjectName('confirm')
+        self.confirm.setText(_translate('Dialog','确定'))
+        if self.tag==0:
+            self.confirm.clicked.connect(self.backupDstInit)
+        elif self.tag==1:
+            self.confirm.clicked.connect(self.restoreDstInit)
+        self.verticalLayout.addWidget(self.confirm)
+
+    #源路径展示，用于在备份/还原时展示并选择源路径
+    def showDirs(self,page):
         self.clear()
         length=min(len(self.files)-page*self.size,self.size)
         _translate = QtCore.QCoreApplication.translate
@@ -134,19 +190,19 @@ class Ui_Dialog(object):
             # 动态设置属性
             setattr(self, f'file_button{i}', file_button)
             exec('self.file_button{}.show'.format(i))
-
+            
         if page>0:
             self.last=QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
             self.last.setObjectName('last')
             self.last.setText(_translate('Dialog','上一页'))
-            self.last.clicked.connect(partial(self.showFiles, page-1))
+            self.last.clicked.connect(partial(self.showDirs, page-1))
             self.verticalLayout.addWidget(self.last)
 
         if page*self.size+self.size<len(self.files):
             self.next=QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
             self.next.setObjectName('next')
             self.next.setText(_translate('Dialog','下一页'))
-            self.next.clicked.connect(partial(self.showFiles, page+1))
+            self.next.clicked.connect(partial(self.showDirs, page+1))
             self.verticalLayout.addWidget(self.next)
             
         #选项设计，回到上级目录
@@ -167,7 +223,8 @@ class Ui_Dialog(object):
             self.confirm.clicked.connect(self.Decrypt)
         self.verticalLayout.addWidget(self.confirm)
 
-    def showDstFiles(self,page):
+    #目标路径展示，用于在备份/还原时展示并选择目标路径
+    def showDstDirs(self,page):
         self.clear()
         length=min(len(self.files)-page*self.size,self.size)
         _translate = QtCore.QCoreApplication.translate
@@ -189,14 +246,14 @@ class Ui_Dialog(object):
             self.last=QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
             self.last.setObjectName('last')
             self.last.setText(_translate('Dialog','上一页'))
-            self.last.clicked.connect(partial(self.showDstFiles, page-1))
+            self.last.clicked.connect(partial(self.showDstDirs, page-1))
             self.verticalLayout.addWidget(self.last)
 
         if page*self.size+self.size<len(self.files):
             self.next=QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
             self.next.setObjectName('next')
             self.next.setText(_translate('Dialog','下一页'))
-            self.next.clicked.connect(partial(self.showDstFiles, page+1))
+            self.next.clicked.connect(partial(self.showDstDirs, page+1))
             self.verticalLayout.addWidget(self.next)
             
         #选项设计，回到上级目录
@@ -217,22 +274,23 @@ class Ui_Dialog(object):
             self.confirm.clicked.connect(self.DecryptFile)
         self.verticalLayout.addWidget(self.confirm)
     
-    #目标路径查询，移动到目标文件所在路径
+    #源路径查询，移动到源文件所在路径
     def searchDir(self):
         self.files=[file for file in os.listdir(self.path) if os.path.isdir(f'{self.path}{file}')]
         _translate = QtCore.QCoreApplication.translate
         
         #提示信息更新
         self.label.setText(_translate("Dialog", "请移动到目标文件所在目录"))
-        self.showFiles(0)
+        self.showDirs(0)
 
+    #目标路径查询，移动到终点路径
     def searchDst(self):
         self.files=[file for file in os.listdir(self.dst_path) if os.path.isdir(f'{self.dst_path}{file}')]
         _translate = QtCore.QCoreApplication.translate
 
         #提示信息更新
         self.label.setText(_translate("Dialog", "请移动到终点目录"))
-        self.showDstFiles(0)
+        self.showDstDirs(0)
 
     #zip打包，将若干个源文件打包成一个zip压缩包
     def PackZipFile(self):
@@ -275,6 +333,7 @@ class Ui_Dialog(object):
         self.clear()
         if not self.targets:
             QtWidgets.QMessageBox.critical(None,'操作失败','请选择至少一个文件进行备份',QtWidgets.QMessageBox.StandardButton.Ok)
+            self.setupUI(self.Dialog)
         else:
             _translate = QtCore.QCoreApplication.translate
 
@@ -343,7 +402,7 @@ class Ui_Dialog(object):
     #备份操作界面，选择目标路径下需要备份的文件
     def Pack(self):
         self.clear()
-        files=[file for file in os.listdir(self.path)]
+        self.files=[file for file in os.listdir(self.path)]
         self.targets=[]
         _translate = QtCore.QCoreApplication.translate
 
@@ -351,26 +410,7 @@ class Ui_Dialog(object):
         self.label.setText(_translate("Dialog", "请选择需要备份的文件："))
 
         #文件选项设计，为目标路径下每个文件创建一个多选框类型的按钮
-        for i, file in enumerate(files):
-            #exec('if file_button{}.exist(): file_button{}.show()'.format(i,i))
-            file_button = QtWidgets.QCheckBox(parent=self.verticalLayoutWidget)
-            file_button.setObjectName(f"fileButton{i}")
-            file_button.setText(_translate("Dialog", file))
-    
-            # 使用 partial 连接信号
-            file_button.clicked.connect(partial(self.targetsChange, file))
-            self.verticalLayout.addWidget(file_button)
-            
-            # 动态设置属性
-            setattr(self, f'file_button{i}', file_button)
-            exec('self.file_button{}.show'.format(i))
-
-        #确定按钮设计，表示目标文件选择完毕并进入下一阶段
-        self.confirm=QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
-        self.confirm.setObjectName('Confirm')
-        self.confirm.setText(_translate('Dialog','确定'))
-        self.confirm.clicked.connect(self.backupDstInit)
-        self.verticalLayout.addWidget(self.confirm)
+        self.showFiles(0)
 
     #霍夫曼压缩，将目标文件以霍夫曼编码方式进行压缩并添加相应前缀名
     def HuffmanCompress(self):
@@ -456,21 +496,27 @@ class Ui_Dialog(object):
     #3DES压缩，将目标文件以3DES方式加密，并添加相应前缀名
     def Encrypt3DES(self):
         try:
-            encrypt3DES(self.dst_path,self.file)
+            #生成密钥
+            key=randomString(16)
+            
+            encrypt3DES(self.dst_path,self.file,key)
         except:
             QtWidgets.QMessageBox.critical(None,'操作失败',f'{self.dst_path}{self.file}无法加密',QtWidgets.QMessageBox.StandardButton.Ok)
         else:
-            QtWidgets.QMessageBox.information(None,'操作成功',f'已将所选文件加密至{self.dst_path}3DES_{self.file}',QtWidgets.QMessageBox.StandardButton.Ok)
+            QtWidgets.QMessageBox.information(None,'操作成功',f'已将所选文件加密至{self.dst_path}3DES_{key}_{self.file}',QtWidgets.QMessageBox.StandardButton.Ok)
             self.setupUI(self.Dialog)
     
     #AES压缩，将目标文件以AES方式压缩，并添加相应前缀名
     def EncryptAES(self):
         try:
-            encryptAES(self.dst_path,self.file)
+            #生成密钥
+            key=randomString(16)
+            
+            encryptAES(self.dst_path,self.file,key)
         except:
             QtWidgets.QMessageBox.critical(None,'操作失败',f'{self.dst_path}{self.file}无法加密',QtWidgets.QMessageBox.StandardButton.Ok)
         else:
-            QtWidgets.QMessageBox.information(None,'操作成功',f'已将所选文件加密至{self.dst_path}AES_{self.file}',QtWidgets.QMessageBox.StandardButton.Ok)
+            QtWidgets.QMessageBox.information(None,'操作成功',f'已将所选文件加密至{self.dst_path}AES_{key}_{self.file}',QtWidgets.QMessageBox.StandardButton.Ok)
             self.setupUI(self.Dialog)
 
     #压缩操作界面，选择压缩方式
@@ -521,15 +567,16 @@ class Ui_Dialog(object):
         self.clear()
         if not self.targets:
             QtWidgets.QMessageBox.critical(None,'操作失败','请选择至少一个文件进行还原',QtWidgets.QMessageBox.StandardButton.Ok)
+            self.setupUI(self.Dialog)
         else:
             new_targets=[]
             for file in self.targets:
                 if file[:5]=='3DES_':
                     self.Decrypt3DES(file)
-                    new_targets.append(file[5:])
+                    new_targets.append(file[22:])
                 elif file[:4]=='AES_':
                     self.DecryptAES(file)
-                    new_targets.append(file[4:])
+                    new_targets.append(file[21:])
                 else:
                     new_targets.append(file)
             self.targets=new_targets
@@ -538,7 +585,7 @@ class Ui_Dialog(object):
     #还原操作界面，选择目标路径下需要还原的文件，文件须为zip或tgz类型
     def Decrypt(self):
         self.clear()
-        files=[file for file in os.listdir(self.path) if file[-4:]=='.zip' or file[-4:]=='.tgz']
+        self.files=[file for file in os.listdir(self.path) if file[-4:]=='.zip' or file[-4:]=='.tgz']
         self.targets=[]
         _translate = QtCore.QCoreApplication.translate
 
@@ -546,36 +593,17 @@ class Ui_Dialog(object):
         self.label.setText(_translate("Dialog", "请选择需要还原的文件："))
 
         #文件选项设计，为目标路径下每个类型为zip或tgz的文件创建一个多选框类型的按钮
-        for i, file in enumerate(files):
-            file_button = QtWidgets.QCheckBox(parent=self.verticalLayoutWidget)
-            file_button.setObjectName(f"fileButton{i}")
-            file_button.setText(_translate("Dialog", file))
-            # 使用 partial 连接信号
-            file_button.clicked.connect(partial(self.targetsChange, file))
-            self.verticalLayout.addWidget(file_button)
-            # 动态设置属性
-            setattr(self, f'file_button{i}', file_button)
-            exec('self.file_button{}.show'.format(i))
-
-        #确定按钮设计，表示目标文件选择完毕并进入下一阶段
-        self.confirm=QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
-        self.confirm.setObjectName('Confirm')
-        self.confirm.setText(_translate('Dialog','确定'))
-        self.confirm.clicked.connect(self.restoreDstInit)
-        self.verticalLayout.addWidget(self.confirm)
+        self.showFiles(0)
 
     #主目录组件再命名，
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
+        Dialog.setWindowTitle(_translate("Dialog", "智能文件管理系统"))
         self.label.setText(_translate("Dialog", "欢迎使用智能文件管理系统"))
         self.pushButton.setText(_translate("Dialog", "文件备份"))
         self.pushButton_2.setText(_translate("Dialog", "文件还原"))
-        '''self.pushButton_4.setText(_translate("Dialog", "文件解压"))
-        self.pushButton_5.setText(_translate("Dialog", "文件打包"))
-        self.pushButton_6.setText(_translate("Dialog", "文件加密"))
-        self.pushButton_3.setText(_translate("Dialog", "文件解密"))'''
 
+#本地备份线程，在程序运行时自动定期将项目文件保存到本地
 class backupLocalThread(Thread):
     def __init__(self,interval):
         super().__init__()
@@ -591,6 +619,7 @@ class backupLocalThread(Thread):
     def stop(self):
         self.event.set()
 
+#云备份线程，在程序运行时自动定期将项目文件推送到GitHub
 class backupOnlineThread(Thread):
     def __init__(self,interval):
         super().__init__()
@@ -606,19 +635,24 @@ class backupOnlineThread(Thread):
     def stop(self):
         self.event.set()
 
+#构建集成了GUI界面与备份线程的主类
 class MyMainForm(QtWidgets.QMainWindow,Ui_Dialog):
-    def __init__(self,backup_local_thread,backup_online_thread,parent=None):
-        super().__init__(parent)
-        self.init(self,backup_local_thread,backup_online_thread)
-    
+    def __init__(self):
+        super().__init__() #parent=None
+        self.init(self)
+        self.initBackupThreads()
+
+    #备份线程初始化，为本地及云备份线程设定间隔时间并将其启动
+    def initBackupThreads(self):
+        #QtCore.QTimer.singleShot(100,self.start_threads)
+        self.backup_local_thread=backupLocalThread(10000)
+        self.backup_online_thread=backupOnlineThread(10000)
+        self.backup_local_thread.start()
+        self.backup_online_thread.start()
+        
 if __name__=='__main__':
-    #p=Process(target=backup,args=(5,))
-    #p.start()
-    backup_local_thread=backupLocalThread(10000)
-    backup_local_thread.start()
-    backup_online_thread=backupOnlineThread(10000)
-    backup_online_thread.start()
     app=QtWidgets.QApplication(sys.argv)
-    myWin=MyMainForm(backup_local_thread,backup_online_thread)
-    myWin.show()
+    window=MyMainForm()
+    window.show()
     sys.exit(app.exec())
+
