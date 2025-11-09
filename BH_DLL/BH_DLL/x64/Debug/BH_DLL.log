@@ -1,0 +1,15 @@
+﻿  BH_dll.cpp
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.cpp(6,5): warning C4273: “add”: dll 链接不一致
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.h(17,11): message : 参见“add”的前一个定义
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.cpp(10,5): warning C4273: “sub”: dll 链接不一致
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.h(18,11): message : 参见“sub”的前一个定义
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.cpp(15,11): warning C4273: “dllH::mul”: dll 链接不一致
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.h(25,6): message : 参见“mul”的前一个定义
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.cpp(19,11): warning C4273: “dllH::div”: dll 链接不一致
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.h(26,6): message : 参见“div”的前一个定义
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.cpp(24,5): warning C4273: “Cadd”: dll 链接不一致
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.h(32,12): message : 参见“Cadd”的前一个定义
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.cpp(28,5): warning C4273: “Csub”: dll 链接不一致
+C:\Users\gsr00\软工\code\BH_DLL\BH_DLL\BH_dll.h(33,12): message : 参见“Csub”的前一个定义
+    正在创建库 C:\Users\gsr00\软工\code\BH_DLL\x64\Debug\BH_DLL.lib 和对象 C:\Users\gsr00\软工\code\BH_DLL\x64\Debug\BH_DLL.exp
+  BH_DLL.vcxproj -> C:\Users\gsr00\软工\code\BH_DLL\x64\Debug\BH_DLL.dll
