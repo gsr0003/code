@@ -57,8 +57,8 @@ int main() {
     }
 
     // 测试解密功能
-    bool result1 = decrypt3DES("./encrypted/", "prefix_16bytekey123456_suffix.dat", "./decrypted/");
-    bool result2 = decryptAES("./encrypted/", "pre_16bytekey1234567_suffix.dat", "./decrypted/");
+    bool result1 = decrypt3DES("./encrypted/", "3DES_XyH5xUsHlaJckrCW_huffman_1.txt.zip", "./decrypted/");
+    bool result2 = decryptAES("./encrypted/", "AES_oWuqDCuKuZoCZxGJ_LZMA_1.txt.tgz", "./decrypted/");
 
     std::cout << "3DES解密: " << (result1 ? "成功" : "失败") << std::endl;
     std::cout << "AES解密: " << (result2 ? "成功" : "失败") << std::endl;
