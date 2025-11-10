@@ -1,183 +1,323 @@
+#include "pch.h"
+#include "Decrypt.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
-#include <openssl/des.h>
-#include <openssl/aes.h>
-#include <openssl/evp.h>
-#include <filesystem>
-#include <chrono>
+#include <cstring>
+#include <ctime>
 #include <iomanip>
+#include <sstream>
+#include <windows.h>
+#include <wincrypt.h>
+
+#pragma comment(lib, "advapi32.lib")
+
+// DLL入口点
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
+    switch (ul_reason_for_call) {
+    case DLL_PROCESS_ATTACH:
+        break;
+    case DLL_THREAD_ATTACH:
+        break;
+    case DLL_THREAD_DETACH:
+        break;
+    case DLL_PROCESS_DETACH:
+        break;
+    }
+    return TRUE;
+}
 
 class FileDecryptor {
 private:
-    static std::string getFileCreationTime(const std::string& file_path) {
-        namespace fs = std::filesystem;
-        auto ftime = fs::last_write_time(file_path);
-        auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
-            ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
-        std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
-        std::tm tm = *std::localtime(&tt);
+    static bool getFileCreationTime(const std::string& filepath, std::tm& creationTime) {
+        HANDLE hFile = CreateFileA(filepath.c_str(), GENERIC_READ, FILE_SHARE_READ,
+            NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) return false;
 
-        std::ostringstream oss;
-        oss << std::setfill('0')
-            << std::setw(2) << tm.tm_mday
-            << std::setw(2) << tm.tm_hour
-            << std::setw(2) << tm.tm_min
-            << std::setw(2) << tm.tm_sec;
-        return oss.str();
+        FILETIME ftCreate, ftAccess, ftWrite;
+        if (!GetFileTime(hFile, &ftCreate, &ftAccess, &ftWrite)) {
+            CloseHandle(hFile);
+            return false;
+        }
+
+        SYSTEMTIME st;
+        FileTimeToSystemTime(&ftCreate, &st);
+
+        creationTime.tm_year = st.wYear - 1900;
+        creationTime.tm_mon = st.wMonth - 1;
+        creationTime.tm_mday = st.wDay;
+        creationTime.tm_hour = st.wHour;
+        creationTime.tm_min = st.wMinute;
+        creationTime.tm_sec = st.wSecond;
+
+        CloseHandle(hFile);
+        return true;
     }
 
-    static std::vector<unsigned char> readFile(const std::string& filename) {
-        std::ifstream file(filename, std::ios::binary | std::ios::ate);
-        if (!file) {
-            throw std::runtime_error("Cannot open file: " + filename);
-        }
-
-        std::streamsize size = file.tellg();
-        file.seekg(0, std::ios::beg);
-
-        std::vector<unsigned char> buffer(size);
-        if (!file.read(reinterpret_cast<char*>(buffer.data()), size)) {
-            throw std::runtime_error("Cannot read file: " + filename);
-        }
-
-        return buffer;
+    static std::string generateTimeString(const std::tm& timeinfo) {
+        std::stringstream ss;
+        ss << std::setfill('0')
+            << std::setw(2) << timeinfo.tm_mday
+            << std::setw(2) << timeinfo.tm_hour
+            << std::setw(2) << timeinfo.tm_min
+            << std::setw(2) << timeinfo.tm_sec;
+        return ss.str();
     }
 
-    static void writeFile(const std::string& filename, const std::vector<unsigned char>& data) {
-        std::ofstream file(filename, std::ios::binary);
-        if (!file) {
-            throw std::runtime_error("Cannot create file: " + filename);
+    static std::vector<BYTE> removePKCS7Padding(const std::vector<BYTE>& data) {
+        if (data.empty()) return data;
+
+        BYTE padValue = data[data.size() - 1];
+        if (padValue > data.size()) return data;
+
+        for (size_t i = data.size() - padValue; i < data.size(); ++i) {
+            if (data[i] != padValue) return data;
         }
-        file.write(reinterpret_cast<const char*>(data.data()), data.size());
+
+        return std::vector<BYTE>(data.begin(), data.end() - padValue);
+    }
+
+    static bool decrypt3DESWithCryptoAPI(const std::vector<BYTE>& encryptedData,
+        const std::string& key, const std::string& iv,
+        std::vector<BYTE>& decryptedData) {
+        HCRYPTPROV hProv;
+        HCRYPTKEY hKey;
+        HCRYPTHASH hHash;
+
+        if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
+            return false;
+        }
+
+        if (!CryptCreateHash(hProv, CALG_SHA1, 0, 0, &hHash)) {
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        if (!CryptHashData(hHash, (BYTE*)key.c_str(), (DWORD)key.length(), 0)) {
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        if (!CryptDeriveKey(hProv, CALG_3DES, hHash, 0, &hKey)) {
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        if (!CryptSetKeyParam(hKey, KP_IV, (BYTE*)iv.c_str(), 0)) {
+            CryptDestroyKey(hKey);
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        DWORD mode = CRYPT_MODE_CBC;
+        if (!CryptSetKeyParam(hKey, KP_MODE, (BYTE*)&mode, 0)) {
+            CryptDestroyKey(hKey);
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        DWORD dataLen = (DWORD)encryptedData.size();
+        decryptedData = encryptedData;
+
+        if (!CryptDecrypt(hKey, 0, TRUE, 0, decryptedData.data(), &dataLen)) {
+            CryptDestroyKey(hKey);
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        decryptedData.resize(dataLen);
+        decryptedData = removePKCS7Padding(decryptedData);
+
+        CryptDestroyKey(hKey);
+        CryptDestroyHash(hHash);
+        CryptReleaseContext(hProv, 0);
+
+        return true;
+    }
+
+    static bool decryptAESWithCryptoAPI(const std::vector<BYTE>& encryptedData,
+        const std::string& key, const std::string& iv,
+        std::vector<BYTE>& decryptedData) {
+        HCRYPTPROV hProv;
+        HCRYPTKEY hKey;
+        HCRYPTHASH hHash;
+
+        if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) {
+            if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
+                return false;
+            }
+        }
+
+        if (!CryptCreateHash(hProv, CALG_SHA1, 0, 0, &hHash)) {
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        if (!CryptHashData(hHash, (BYTE*)key.c_str(), (DWORD)key.length(), 0)) {
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        if (!CryptDeriveKey(hProv, CALG_AES_128, hHash, 0, &hKey)) {
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        if (!CryptSetKeyParam(hKey, KP_IV, (BYTE*)iv.c_str(), 0)) {
+            CryptDestroyKey(hKey);
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        DWORD mode = CRYPT_MODE_CBC;
+        if (!CryptSetKeyParam(hKey, KP_MODE, (BYTE*)&mode, 0)) {
+            CryptDestroyKey(hKey);
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        DWORD dataLen = (DWORD)encryptedData.size();
+        decryptedData = encryptedData;
+
+        if (!CryptDecrypt(hKey, 0, TRUE, 0, decryptedData.data(), &dataLen)) {
+            CryptDestroyKey(hKey);
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+
+        decryptedData.resize(dataLen);
+
+        CryptDestroyKey(hKey);
+        CryptDestroyHash(hHash);
+        CryptReleaseContext(hProv, 0);
+
+        return true;
     }
 
 public:
-    static bool decrypt3DES(const std::string& file_path, const std::string& file_name,
-        const std::string& dst_path) {
+    static bool decrypt3DES(const std::string& filePath, const std::string& fileName, const std::string& dstPath) {
         try {
-            // 提取密钥
-            if (file_name.length() < 21) {
-                std::cerr << "Filename too short for 3DES decryption" << std::endl;
-                return false;
-            }
-            std::string key = file_name.substr(5, 16);
+            if (fileName.length() < 21) return false;
+            std::string key = fileName.substr(5, 16);
 
-            // 获取IV
-            std::string full_path = file_path + file_name;
-            std::string iv_str = getFileCreationTime(full_path);
+            std::tm creationTime = {};
+            std::string fullPath = filePath + fileName;
+            if (!getFileCreationTime(fullPath, creationTime)) return false;
 
-            // 读取加密文件
-            auto encrypted_data = readFile(full_path);
+            std::string iv = generateTimeString(creationTime);
+            if (iv.length() < 8) iv.append(8 - iv.length(), '0');
 
-            // 3DES解密
-            DES_cblock key1, key2, key3, iv;
-            DES_key_schedule ks1, ks2, ks3;
+            std::string inputFilePath = filePath + fileName;
+            std::ifstream inFile(inputFilePath.c_str(), std::ios::binary);
+            if (!inFile) return false;
 
-            // 将密钥分成三部分
-            memcpy(key1, key.c_str(), 8);
-            memcpy(key2, key.c_str() + 4, 8);
-            memcpy(key3, key.c_str() + 8, 8);
-            memcpy(iv, iv_str.c_str(), 8);
+            std::vector<BYTE> encryptedData(
+                (std::istreambuf_iterator<char>(inFile)),
+                std::istreambuf_iterator<char>()
+            );
+            inFile.close();
 
-            DES_set_key_unchecked(&key1, &ks1);
-            DES_set_key_unchecked(&key2, &ks2);
-            DES_set_key_unchecked(&key3, &ks3);
+            if (encryptedData.empty()) return false;
 
-            std::vector<unsigned char> decrypted_data(encrypted_data.size());
-            int final_length = 0;
+            std::vector<BYTE> decryptedData;
+            if (!decrypt3DESWithCryptoAPI(encryptedData, key, iv, decryptedData)) return false;
 
-            DES_ede3_cbc_encrypt(encrypted_data.data(), decrypted_data.data(),
-                encrypted_data.size(), &ks1, &ks2, &ks3, &iv, DES_DECRYPT);
+            std::string outputFileName = (fileName.length() > 22) ? fileName.substr(22) : "decrypted_" + fileName;
+            std::string outputPath = dstPath + outputFileName;
 
-            // 处理PKCS5填充
-            size_t pad_len = decrypted_data.back();
-            if (pad_len > 0 && pad_len <= 8) {
-                decrypted_data.resize(decrypted_data.size() - pad_len);
-            }
+            CreateDirectoryA(dstPath.c_str(), NULL);
 
-            // 写入解密文件
-            std::string output_name = file_name.substr(22);
-            writeFile(dst_path + output_name, decrypted_data);
+            std::ofstream outFile(outputPath.c_str(), std::ios::binary);
+            if (!outFile) return false;
+
+            outFile.write(reinterpret_cast<const char*>(decryptedData.data()), decryptedData.size());
+            outFile.close();
 
             return true;
+
         }
-        catch (const std::exception& e) {
-            std::cerr << "3DES Decryption failed: " << e.what() << std::endl;
+        catch (...) {
             return false;
         }
     }
 
-    static bool decryptAES(const std::string& file_path, const std::string& file_name,
-        const std::string& dst_path) {
+    static bool decryptAES(const std::string& filePath, const std::string& fileName, const std::string& dstPath) {
         try {
-            // 提取密钥
-            if (file_name.length() < 20) {
-                std::cerr << "Filename too short for AES decryption" << std::endl;
-                return false;
-            }
-            std::string key = file_name.substr(4, 16);
+            if (fileName.length() < 20) return false;
+            std::string key = fileName.substr(4, 16);
 
-            // 获取IV
-            std::string full_path = file_path + file_name;
-            std::string ctime = getFileCreationTime(full_path);
+            std::tm creationTime = {};
+            std::string fullPath = filePath + fileName;
+            if (!getFileCreationTime(fullPath, creationTime)) return false;
+
+            std::string ctime = generateTimeString(creationTime);
             std::string iv = key.substr(4, 8) + ctime;
+            if (iv.length() < 16) iv.append(16 - iv.length(), '0');
 
-            // 读取加密文件
-            auto encrypted_data = readFile(full_path);
+            std::string inputFilePath = filePath + fileName;
+            std::ifstream inFile(inputFilePath.c_str(), std::ios::binary);
+            if (!inFile) return false;
 
-            // AES解密
-            EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-            if (!ctx) {
-                throw std::runtime_error("Failed to create EVP context");
-            }
+            std::vector<BYTE> encryptedData(
+                (std::istreambuf_iterator<char>(inFile)),
+                std::istreambuf_iterator<char>()
+            );
+            inFile.close();
 
-            if (EVP_DecryptInit_ex(ctx, EVP_aes_128_cbc(), NULL,
-                reinterpret_cast<const unsigned char*>(key.c_str()),
-                reinterpret_cast<const unsigned char*>(iv.c_str())) != 1) {
-                EVP_CIPHER_CTX_free(ctx);
-                throw std::runtime_error("Failed to initialize AES decryption");
-            }
+            if (encryptedData.empty()) return false;
 
-            std::vector<unsigned char> decrypted_data(encrypted_data.size() + AES_BLOCK_SIZE);
-            int out_len1 = 0, out_len2 = 0;
+            std::vector<BYTE> decryptedData;
+            if (!decryptAESWithCryptoAPI(encryptedData, key, iv, decryptedData)) return false;
 
-            if (EVP_DecryptUpdate(ctx, decrypted_data.data(), &out_len1,
-                encrypted_data.data(), encrypted_data.size()) != 1) {
-                EVP_CIPHER_CTX_free(ctx);
-                throw std::runtime_error("AES decryption update failed");
-            }
+            std::string outputFileName = (fileName.length() > 21) ? fileName.substr(21) : "decrypted_" + fileName;
+            std::string outputPath = dstPath + outputFileName;
 
-            if (EVP_DecryptFinal_ex(ctx, decrypted_data.data() + out_len1, &out_len2) != 1) {
-                EVP_CIPHER_CTX_free(ctx);
-                throw std::runtime_error("AES decryption final failed");
-            }
+            CreateDirectoryA(dstPath.c_str(), NULL);
 
-            EVP_CIPHER_CTX_free(ctx);
+            std::ofstream outFile(outputPath.c_str(), std::ios::binary);
+            if (!outFile) return false;
 
-            decrypted_data.resize(out_len1 + out_len2);
-
-            // 写入解密文件
-            std::string output_name = file_name.substr(21);
-            writeFile(dst_path + output_name, decrypted_data);
+            outFile.write(reinterpret_cast<const char*>(decryptedData.data()), decryptedData.size());
+            outFile.close();
 
             return true;
+
         }
-        catch (const std::exception& e) {
-            std::cerr << "AES Decryption failed: " << e.what() << std::endl;
+        catch (...) {
             return false;
         }
     }
 };
 
-// 使用示例
-int main() {
-    // 3DES解密示例
-    FileDecryptor::decrypt3DES("encrypted/", "des_key123456789012_original.txt", "decrypted/");
+// 导出的DLL函数
+DECRYPT_API bool decrypt3DES(const char* filePath, const char* fileName, const char* dstPath) {
+    return FileDecryptor::decrypt3DES(filePath, fileName, dstPath);
+}
 
-    // AES解密示例  
-    FileDecryptor::decryptAES("encrypted/", "aes_key123456789012_original.txt", "decrypted/");
+DECRYPT_API bool decryptAES(const char* filePath, const char* fileName, const char* dstPath) {
+    return FileDecryptor::decryptAES(filePath, fileName, dstPath);
+}
 
-    return 0;
+DECRYPT_API const char* getVersion() {
+    return "FileDecryptor DLL v1.0";
+}
+
+DECRYPT_API bool initialize() {
+    // 可以在这里进行初始化操作
+    return true;
+}
+
+DECRYPT_API void cleanup() {
+    // 可以在这里进行清理操作
 }
