@@ -1,0 +1,10 @@
+LIBRARY MinimalArchiveExtractor
+EXPORTS
+    CreateMinimalExtractor
+    DestroyMinimalExtractor
+    UnpackArchive
+    SetExtractionPath
+    GetLastErrorMessage
+    IsFormatSupported
+    CreateMinimalExtractorInterface
+    DestroyMinimalExtractorInterface
