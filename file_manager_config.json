@@ -6,7 +6,7 @@
         "cloud_backup_enabled": true
     },
     "backup": {
-        "local_interval": 1000,
+        "local_interval": 10,
         "cloud_interval": 10,
         "max_backup_files": 10,
         "backup_dir": "C:/Users/gsr00/软工/backup"
