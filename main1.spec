@@ -6,11 +6,11 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['scipy', 'scipy._lib', 'scipy._build_utils'],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['scipy','PyQt5','PySide6'],
     noarchive=False,
     optimize=0,
 )
