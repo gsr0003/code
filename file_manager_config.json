@@ -1,18 +1,18 @@
 {
     "system": {
-        "initial_directory": "C:/Users/gsr00/软工",
+        "initial_directory": "C:/",
         "page_size": 8,
         "backup_enabled": true,
         "cloud_backup_enabled": true
     },
     "backup": {
-        "local_interval": 100,
+        "local_interval": 10,
         "cloud_interval": 10,
-        "backup_dir": "C:/Users/gsr00/软工/backup"
+        "backup_dir": "C:/FileBackup"
     },
     "ui": {
         "theme": "default",
-        "font_size": 8,
+        "font_size": 10,
         "language": "zh_CN"
     }
 }
