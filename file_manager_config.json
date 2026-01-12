@@ -1,6 +1,6 @@
 {
     "system": {
-        "initial_directory": "C:/Users/gsr00/软工/",
+        "initial_directory": "C:/",
         "page_size": 8,
         "backup_enabled": true,
         "cloud_backup_enabled": true
@@ -8,20 +8,11 @@
     "backup": {
         "local_interval": 10,
         "cloud_interval": 10,
-        "max_backup_files": 10,
-        "backup_dir": "C:/Users/gsr00/软工/backup"
-    },
-    "compression": {
-        "default_method": "zip",
-        "compress_level": 6
-    },
-    "encryption": {
-        "default_method": "AES",
-        "key_length": 16
+        "backup_dir": "C:/FileBackup"
     },
     "ui": {
         "theme": "default",
-        "font_size": 8,
+        "font_size": 10,
         "language": "zh_CN"
     }
 }
