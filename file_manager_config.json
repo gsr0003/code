@@ -1,0 +1,18 @@
+{
+    "system": {
+        "initial_directory": "C:/",
+        "page_size": 8,
+        "backup_enabled": true,
+        "cloud_backup_enabled": true
+    },
+    "backup": {
+        "local_interval": 10,
+        "cloud_interval": 10,
+        "backup_dir": "C:/FileBackup"
+    },
+    "ui": {
+        "theme": "default",
+        "font_size": 8,
+        "language": "zh_CN"
+    }
+}
